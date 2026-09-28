@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sprint_status_v1",
+  "title": "Sprint status report (v1.0.0)",
+  "description": "Target schema validated at post_process. Figures come from metrics_compute; prose fields are LLM-authored and must carry claims. No per-person evaluation field may be added (see forbid_person_evaluation in config/config.yaml).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_meta",
+    "metrics",
+    "narrative"
+  ],
+  "properties": {
+    "report_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_id",
+        "period_start_utc",
+        "period_end_utc",
+        "source_set_id",
+        "schema_version"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "period_start_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "period_end_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_set_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "close_rate",
+        "velocity",
+        "milestone_progress",
+        "estimate_missing_count"
+      ],
+      "properties": {
+        "close_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "velocity": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Sum of estimates for items closed in the period. Fractional estimates (e.g. 0.5 point) are permitted; the sum is quantised to 1 dp, ROUND_HALF_UP."
+        },
+        "estimate_missing_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "milestone_progress": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "milestone_id",
+              "progress"
+            ],
+            "properties": {
+              "milestone_id": {
+                "type": "string"
+              },
+              "progress": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "narrative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "risks",
+        "blockers",
+        "next_steps"
+      ],
+      "properties": {
+        "summary": {
+          "$ref": "#/$defs/cited_text"
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cited_item"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cited_item"
+          }
+        },
+        "next_steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cited_text"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "cited_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "description",
+        "source_ids"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "cited_text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "source_ids"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+# Runtime parameters — loaded by the platform and passed as Graph(config=...).
+# This is a SEPARATE file from config/agent.yaml (the static manifest): agent.yaml is
+# the discovery entry point that identifies and locates the agent, while this file is
+# the agent's own runtime configuration, keyed by whatever the graph and node code
+# reads via self.config.get(...). Values that a deployment tunes belong here; values
+# that identify the agent belong in agent.yaml.
+
+max_retry: 3
+timeout_s: 30
+
+# memory_enabled: false
+# hitl:
+#   enabled: false
+#   max_hitl: 5
+
+# ── Source sets (allowlist) ────────────────────────────────────────────────
+# `source_set_id` in the request envelope MUST be one of these keys. An absent or
+# unknown id is rejected at pre_process with E_SOURCE_SET_UNKNOWN — never defaulted.
+# Every adapter is read-only; this template performs no write-back.
+# Adding a key here is the ONLY way to make a new source set reachable.
+source_sets:
+  gitlab_issues_v1:
+    adapter: "src.services.adapters.gitlab_issue_adapter.GitLabIssueAdapter"
+    kind: "issue_tracker"
+    text_fields: ["title", "description", "notes[].body"]
+    base_url: "https://gitlab.example.com"   # non-secret connection setting; replace with your own
+    secret_name: "GITLAB_READ_TOKEN"              # unavailable -> E_SOURCE_CREDENTIAL_UNAVAILABLE
+  spreadsheet_progress_v1:
+    adapter: "src.services.adapters.spreadsheet_adapter.SpreadsheetProgressAdapter"
+    kind: "tabular"
+    text_fields: ["note"]
+    base_url: "https://sheets.example.com"
+    secret_name: "SPREADSHEET_READ_TOKEN"
+
+# ── Caller authorization (fail-closed) ─────────────────────────────────────
+# A VERIFIED_EXTERNAL caller is authenticated, not authorised for every project.
+# pre_process resolves the permitted set from ctx.caller_id (NOT session_id, which
+# is caller-supplied and echoed verbatim) and rejects anything else with
+# E_PROJECT_FORBIDDEN *before* any fetch. A caller absent from this mapping has no
+# permitted projects — absence denies, it does not allow.
+allowed_projects:
+  # "<caller_id>": ["<project_id>", ...]
+  {}
+
+# ── Output schemas (allowlist, versioned) ──────────────────────────────────
+# `output_schema_id` MUST be one of these keys; unknown -> E_SCHEMA_UNKNOWN.
+# post_process validates the assembled JSON against `path` and fails the run when
+# the document does not conform. A version is never inferred from the payload shape.
+# `forbid_person_evaluation: true` is enforced by a schema lint test: it rejects any
+# schema that introduces a property named for a per-person evaluation. It constrains the
+# SCHEMA only — the narrative fields are free text and are not content-classified, so it
+# does not prevent an evaluative sentence about a named person from being drafted. See
+# the EU AI Act section of docs/02_design.md for what the scope determination does and
+# does not rest on.
+output_schemas:
+  sprint_status_v1:
+    path: "config/schemas/sprint_status_v1.json"
+    version: "1.0.0"
+    forbid_person_evaluation: true
+
+# ── Input quality gate thresholds (applied to text that reaches the LLM) ───
+# Two-stage: the request envelope is checked at pre_process; fetched source text
+# is checked inside the inner graph at source_content_gate (fetched content does
+# not exist yet at pre_process). Both stages read these thresholds.
+quality_gate:
+  max_chars_per_field: 20000
+  max_control_char_ratio: 0.02      # excluding \n and \t
+  max_replacement_char_ratio: 0.01  # U+FFFD
+  min_printable_ratio: 0.80
+  on_failure: "exclude_record"      # exclude_record | fail_run
+
+# ── Provenance / claim verification ────────────────────────────────────────
+provenance:
+  min_quoted_span_chars: 12   # below this, `span in source_text` is vacuously true
+  numeric_tolerance: 0        # figures must match metrics exactly (no tolerance)
+  on_unverified_claim: "move_to_unresolved"   # the field is dropped from the report body
+
+# ── LLM ────────────────────────────────────────────────────────────────────
+# The narrative stage is mandatory. If no LLM client is available the run fails
+# with E_LLM_UNAVAILABLE rather than emitting a report without narrative fields.
+llm_required: true
